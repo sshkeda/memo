@@ -1,0 +1,177 @@
+diff --git a/dist/cli/Command.js b/dist/cli/Command.js
+index 0561587191e2fe2fff812729b955db15b3224568..fabae84a03824d6f6615ff8ecff7374a4aa56844 100644
+--- a/dist/cli/Command.js
++++ b/dist/cli/Command.js
+@@ -976,6 +976,9 @@ const showHelp = (command, error, renderErrors) => Effect.gen(function* () {
+     errors
+   } = error;
+   const helpDoc = yield* getHelpForCommandPath(command, commandPath, builtIns);
++  if (errors.length > 0 && !renderErrors) {
++    return;
++  }
+   yield* presenter.present(renderErrors && errors.length > 0 ? {
+     _tag: "InvalidInvocation",
+     commandPath,
+@@ -1183,6 +1186,13 @@ export const runWith = (command, config) => {
+         errors: [...globalFlagErrors, ...outOfScopeErrors, ...parseErrors]
+       });
+     }
++    // 5. Handle parsing errors before action flags
++    if (parsedArgs.errors && parsedArgs.errors.length > 0) {
++      return yield* new CliError.ShowHelp({
++        commandPath,
++        errors: parsedArgs.errors
++      });
++    }
+     // 5. Process action flags — first present action wins, then exit
+     for (const flag of activeFlags) {
+       if (flag._tag !== "Action") continue;
+@@ -1223,13 +1233,6 @@ export const runWith = (command, config) => {
+       yield* flag.run(value, handlerCtx);
+       return;
+     }
+-    // 6. Handle parsing errors
+-    if (parsedArgs.errors && parsedArgs.errors.length > 0) {
+-      return yield* new CliError.ShowHelp({
+-        commandPath,
+-        errors: parsedArgs.errors
+-      });
+-    }
+     const input = yield* commandImpl.parse(parsedArgs).pipe(toShowHelp);
+     // 7. Provide setting values
+     let program = commandImpl.handle(input, [command.name]);
+diff --git a/dist/cli/internal/parser.js b/dist/cli/internal/parser.js
+index 5bdc37e61c097e6eb946eb1119a5bc485b768dc4..39d79c891ea65433a2f602606f91e11c67237dd2 100644
+--- a/dist/cli/internal/parser.js
++++ b/dist/cli/internal/parser.js
+@@ -232,11 +232,6 @@ const missingFlagValue = spec => {
+     kind: "flag"
+   });
+ };
+-/**
+- * Checks whether a token is a boolean literal value.
+- * Recognizes: true/false, yes/no, on/off, 1/0
+- */
+-const asBooleanLiteral = token => token?._tag === "Value" && (Primitive.isTrueLiteral(token.value) || Primitive.isFalseLiteral(token.value)) ? token.value : undefined;
+ /* ========================================================================== */
+ /* Flag Value Consumption                                                     */
+ /* ========================================================================== */
+@@ -274,15 +269,6 @@ const consumeFlagValueWithTokens = (cursor, token, spec, negated = false) => {
+         tokens: []
+       };
+     }
+-    const literal = spec.optionalValue === undefined ? asBooleanLiteral(cursor.peek()) : undefined;
+-    if (literal !== undefined) {
+-      const literalToken = cursor.take();
+-      return {
+-        _tag: "Error",
+-        error: invalidNegatedFlagValue(token, spec, literal),
+-        tokens: literalToken === undefined ? [] : [literalToken]
+-      };
+-    }
+     return {
+       _tag: "Value",
+       value: "false",
+@@ -305,12 +291,10 @@ const consumeFlagValueWithTokens = (cursor, token, spec, negated = false) => {
+   }
+   // Boolean flags: check for explicit literal or default to "true"
+   if (Primitive.isBoolean(spec.primitiveType)) {
+-    const literal = asBooleanLiteral(cursor.peek());
+-    const literalToken = literal !== undefined ? cursor.take() : undefined;
+     return {
+       _tag: "Value",
+-      value: literal ?? "true",
+-      tokens: literalToken === undefined ? [] : [literalToken]
++      value: "true",
++      tokens: []
+     };
+   }
+   // Non-boolean: try to consume next Value token
+diff --git a/src/cli/Command.ts b/src/cli/Command.ts
+index dfaeda6151457a4a985690b345027b21e3ba6241..81250aaa44b8a84dff1843e821c96f6754c05bff 100644
+--- a/src/cli/Command.ts
++++ b/src/cli/Command.ts
+@@ -3085,6 +3085,9 @@ const showHelp = <Name extends string, Input, E, R, ContextInput>(
+     const presenter = yield* CliOutput.Presenter
+     const { commandPath, errors } = error
+     const helpDoc = yield* getHelpForCommandPath(command, commandPath, builtIns)
++    if (errors.length > 0 && !renderErrors) {
++      return
++    }
+     yield* presenter.present(
+       renderErrors && errors.length > 0
+         ? { _tag: "InvalidInvocation", commandPath, helpDoc, errors }
+@@ -3440,6 +3443,10 @@ export const runWith = <const Name extends string, Input, E, R, ContextInput>(
+         })
+       }
+ 
++      // 5. Handle parsing errors before action flags
++      if (parsedArgs.errors && parsedArgs.errors.length > 0) {
++        return yield* new CliError.ShowHelp({ commandPath, errors: parsedArgs.errors })
++      }
+       // 5. Process action flags — first present action wins, then exit
+       for (const flag of activeFlags) {
+         if (flag._tag !== "Action") continue
+@@ -3478,10 +3485,6 @@ export const runWith = <const Name extends string, Input, E, R, ContextInput>(
+         return
+       }
+ 
+-      // 6. Handle parsing errors
+-      if (parsedArgs.errors && parsedArgs.errors.length > 0) {
+-        return yield* new CliError.ShowHelp({ commandPath, errors: parsedArgs.errors })
+-      }
+       const input = yield* commandImpl.parse(parsedArgs).pipe(toShowHelp)
+ 
+       // 7. Provide setting values
+diff --git a/src/cli/internal/parser.ts b/src/cli/internal/parser.ts
+index 4c917fa438262a66e39786fb358e6022a09ee7c0..5d3d04a3ecb1d648710d5357b1a94545bf0aea97 100644
+--- a/src/cli/internal/parser.ts
++++ b/src/cli/internal/parser.ts
+@@ -426,15 +426,6 @@ const missingFlagValue = (spec: FlagParam): CliError.InvalidValue => {
+   })
+ }
+ 
+-/**
+- * Checks whether a token is a boolean literal value.
+- * Recognizes: true/false, yes/no, on/off, 1/0
+- */
+-const asBooleanLiteral = (token: Token | undefined): string | undefined =>
+-  token?._tag === "Value" && (Primitive.isTrueLiteral(token.value) || Primitive.isFalseLiteral(token.value))
+-    ? token.value
+-    : undefined
+-
+ /* ========================================================================== */
+ /* Flag Value Consumption                                                     */
+ /* ========================================================================== */
+@@ -485,16 +476,6 @@ const consumeFlagValueWithTokens = (
+       }
+     }
+ 
+-    const literal = spec.optionalValue === undefined ? asBooleanLiteral(cursor.peek()) : undefined
+-    if (literal !== undefined) {
+-      const literalToken = cursor.take()
+-      return {
+-        _tag: "Error",
+-        error: invalidNegatedFlagValue(token, spec, literal),
+-        tokens: literalToken === undefined ? [] : [literalToken]
+-      }
+-    }
+-
+     return {
+       _tag: "Value",
+       value: "false",
+@@ -520,12 +501,10 @@ const consumeFlagValueWithTokens = (
+ 
+   // Boolean flags: check for explicit literal or default to "true"
+   if (Primitive.isBoolean(spec.primitiveType)) {
+-    const literal = asBooleanLiteral(cursor.peek())
+-    const literalToken = literal !== undefined ? cursor.take() : undefined
+     return {
+       _tag: "Value",
+-      value: literal ?? "true",
+-      tokens: literalToken === undefined ? [] : [literalToken]
++      value: "true",
++      tokens: []
+     }
+   }
+ 

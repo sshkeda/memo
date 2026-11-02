@@ -1,0 +1,49 @@
+diff --git a/dist/SqliteClient.d.ts b/dist/SqliteClient.d.ts
+index fd14717cca0bd7843f9182beebc301a898d19cf3..0ff4848b54271e72219f5f5989bb02203af75c41 100644
+--- a/dist/SqliteClient.d.ts
++++ b/dist/SqliteClient.d.ts
+@@ -58,6 +58,7 @@ export declare const SqliteClient: Context.Service<SqliteClient, SqliteClient>;
+  * @since 4.0.0
+  */
+ export interface SqliteClientConfig {
++    readonly noFollow?: boolean | undefined;
+     readonly filename: string;
+     readonly readonly?: boolean | undefined;
+     readonly create?: boolean | undefined;
+diff --git a/dist/SqliteClient.js b/dist/SqliteClient.js
+index c35505e78c582cc45e26da087964ea6fb1213b91..2b3c2b9a89cda442d256313366987e5991d2080f 100644
+--- a/dist/SqliteClient.js
++++ b/dist/SqliteClient.js
+@@ -74,7 +74,7 @@ export const make = options => Effect.gen(function* () {
+       create: readonly ? false : options.create ?? true
+     };
+     const db = yield* Effect.acquireRelease(Effect.try({
+-      try: () => new Database(options.filename, options.filename.startsWith("file:") ? constants.SQLITE_OPEN_URI | (openOptions.readonly ? constants.SQLITE_OPEN_READONLY : 0) | (openOptions.readwrite || openOptions.create ? constants.SQLITE_OPEN_READWRITE : 0) | (openOptions.create ? constants.SQLITE_OPEN_CREATE : 0) : openOptions),
++      try: () => new Database(options.filename, (options.noFollow === true || options.filename.startsWith("file:")) ? (options.noFollow === true ? constants.SQLITE_OPEN_NOFOLLOW : 0) | (options.filename.startsWith("file:") ? constants.SQLITE_OPEN_URI : 0) | (openOptions.readonly ? constants.SQLITE_OPEN_READONLY : 0) | (openOptions.readwrite || openOptions.create ? constants.SQLITE_OPEN_READWRITE : 0) | (openOptions.create ? constants.SQLITE_OPEN_CREATE : 0) : openOptions),
+       catch: cause => new SqlError({
+         reason: classifyError(cause, "Failed to open database", "connect")
+       })
+diff --git a/src/SqliteClient.ts b/src/SqliteClient.ts
+index fb12fedb8e15aa28e1d4ee8c43f5906a72fc51b8..d1470b71638588e994858ee983845df1beeea760 100644
+--- a/src/SqliteClient.ts
++++ b/src/SqliteClient.ts
+@@ -95,6 +95,7 @@ export const SqliteClient = Context.Service<SqliteClient>("@effect/sql-sqlite-bu
+  * @since 4.0.0
+  */
+ export interface SqliteClientConfig {
++  readonly noFollow?: boolean | undefined
+   readonly filename: string
+   readonly readonly?: boolean | undefined
+   readonly create?: boolean | undefined
+@@ -149,8 +150,9 @@ export const make = (
+           try: () =>
+             new Database(
+               options.filename,
+-              options.filename.startsWith("file:")
+-                ? constants.SQLITE_OPEN_URI |
++              (options.noFollow === true || options.filename.startsWith("file:"))
++                ? (options.noFollow === true ? constants.SQLITE_OPEN_NOFOLLOW : 0) |
++                  (options.filename.startsWith("file:") ? constants.SQLITE_OPEN_URI : 0) |
+                   (openOptions.readonly ? constants.SQLITE_OPEN_READONLY : 0) |
+                   (openOptions.readwrite || openOptions.create ? constants.SQLITE_OPEN_READWRITE : 0) |
+                   (openOptions.create ? constants.SQLITE_OPEN_CREATE : 0)

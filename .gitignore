@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+.DS_Store
+.worktrees/
+# Bun.build compile writes its temp executable to the current directory
+*.bun-build

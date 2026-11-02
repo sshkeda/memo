@@ -1,0 +1,39 @@
+{
+  "name": "@sshkeda/memo",
+  "version": "1.0.0",
+  "description": "Local full-text-searchable append-only history for AI agents.",
+  "license": "MIT",
+  "bin": {
+    "memo": "dist/memo"
+  },
+  "type": "module",
+  "dependencies": {
+    "@effect/platform-bun": "4.1.0",
+    "@effect/sql-sqlite-bun": "4.1.0",
+    "effect": "4.1.0"
+  },
+  "devDependencies": {
+    "@effect/tsgo": "0.55.0",
+    "@sshkeda/check": "^1.1.0",
+    "@sshkeda/task": "^1.0.1",
+    "@types/bun": "1.4.3",
+    "oxfmt": "0.72.0",
+    "oxlint": "1.87.0",
+    "oxlint-tsgolint": "7.0.2005",
+    "typescript": "7.0.2"
+  },
+  "overrides": {
+    "@effect/platform-bun": "4.1.0",
+    "@effect/platform-node-shared": "4.1.0",
+    "@effect/sql-sqlite-bun": "4.1.0",
+    "effect": "4.1.0"
+  },
+  "engines": {
+    "bun": ">=1.4.4"
+  },
+  "patchedDependencies": {
+    "@effect/sql-sqlite-bun@4.1.0": ".patches/@effect%2Fsql-sqlite-bun@4.1.0.patch",
+    "effect@4.1.0": ".patches/effect@4.1.0.patch"
+  },
+  "trustedDependencies": []
+}
